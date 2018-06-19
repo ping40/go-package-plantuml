@@ -116,7 +116,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 	for _, structMeta1 := range filteredStructMetas {
 		uml += structMeta1.UML
 		uml += "\n"
-		uml += fmt.Sprintf("note top of %s: layper %d \n", structMeta1.UniqueNameUML(), structMeta1.Layer)
+		uml += fmt.Sprintf("note top of %s: layer #%d \n", structMeta1.UniqueNameUML(), structMeta1.Layer)
 	}
 
 	for _, d := range filteredDependencyRelations {
