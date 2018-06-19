@@ -412,7 +412,8 @@ func (this *analysisTool) visitFuncInFile(path string) {
 				if ok {
 					alias = aliasCache
 				} else {
-					alias = this.findAliasByPackagePath(packagePath)
+					lastIndex := strings.LastIndex(packagePath, "/")
+					alias = packagePath[lastIndex+1:]
 				}
 			}
 
