@@ -76,9 +76,12 @@ func sliceContainsSlice(definedInterface []string, impl []string) bool {
 	if len(impl) < len(definedInterface) {
 		return false
 	}
+	if len(definedInterface) == 0 {
+		return false
+	}
 
-	for _, str := range impl {
-		if !sliceContains(definedInterface, str) {
+	for _, str := range definedInterface {
+		if !sliceContains(impl, str) {
 			return false
 		}
 	}
@@ -739,7 +742,7 @@ func (this *analysisTool) visitFunc(funcDecl *ast.FuncDecl) {
 func (this *analysisTool) visitInterfaceFunctions(name string, interfaceType *ast.InterfaceType) {
 
 	methods := []string{}
-
+	
 	for _, field := range interfaceType.Methods.List {
 
 		funcType, ok := field.Type.(*ast.FuncType)
@@ -750,11 +753,8 @@ func (this *analysisTool) visitInterfaceFunctions(name string, interfaceType *as
 	}
 
 	im := this.findStruct(this.currentPackagePath, name)
-	//im := this.findInterfaceMeta(this.currentPackagePath, name)
 	im.MethodSigns = methods
-
 	im.UML = this.interfaceToUML(name, interfaceType)
-
 }
 
 func (this *analysisTool) findStructTypeOfFunc(funcDecl *ast.FuncDecl) (packageAlias string, structName string) {
@@ -1001,6 +1001,13 @@ func (this *analysisTool) addPackagePathWhenStruct(fieldType string) string {
 		}
 	}
 
+	// 处理type TypeString string 这个情况。TypeString不作为节点存在
+	for _, meta := range this.typeAliasMetas {
+		if sliceContains(searchPackages, meta.PackagePath) && meta.Name == fieldType {
+			return meta.PackagePath + "." + fieldType
+		}
+	}
+
 	return fieldType
 }
 
@@ -1178,7 +1185,7 @@ func (this *analysisTool) findInterfaceImpls(interfaceMeta1 *structMeta) []*stru
 			continue
 		}
 
-		if sliceContainsSlice(structMeta1.MethodSigns, interfaceMeta1.MethodSigns) {
+		if sliceContainsSlice(interfaceMeta1.MethodSigns, structMeta1.MethodSigns) {
 			metas = append(metas, structMeta1)
 		}
 	}
