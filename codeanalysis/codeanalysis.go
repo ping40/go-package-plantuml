@@ -25,10 +25,11 @@ const (
 )
 
 type Config struct {
-	CodeDir    string
-	GopathDir  string
-	VendorDir  string
-	IgnoreDirs []string
+	CodeDir     string
+	GopathDir   string
+	VendorDir   string
+	IgnoreDirs  []string
+	IgnoreNodes []string
 }
 
 type AnalysisResult interface {
@@ -70,22 +71,6 @@ func sliceContains(src []string, value string) bool {
 		}
 	}
 	return isContain
-}
-
-func sliceContainsSlice(definedInterface []string, impl []string) bool {
-	if len(impl) < len(definedInterface) {
-		return false
-	}
-	if len(definedInterface) == 0 {
-		return false
-	}
-
-	for _, str := range definedInterface {
-		if !sliceContains(impl, str) {
-			return false
-		}
-	}
-	return true
 }
 
 func mapContains(src map[string]string, key string) bool {
@@ -157,7 +142,7 @@ type baseInfo struct {
 type structMeta struct {
 	baseInfo
 	Name string
-	// interface的方法签名列表,
+	// 直接方法签名列表,不包括继承的,
 	MethodSigns []string
 	// UML图节点
 	UML string
@@ -167,6 +152,8 @@ type structMeta struct {
 	category Category
 	//是否已经赵过它的实现者，仅仅对接口有效
 	scaned bool
+	// 是否是测试类
+	isTest bool
 }
 
 type typeAliasMeta struct {
@@ -179,12 +166,28 @@ func (this *structMeta) UniqueNameUML() string {
 	return packagePathToUML(this.PackagePath) + "." + this.Name
 }
 
+func (this *structMeta) ColorfulUML() string {
+	if this.isTest {
+		return " #MediumSpringGreen"
+	} else if this.category == StructCategory {
+		return " #LightSkyBlue"
+	}
+	return " #LightCyan"
+}
+
+func (this *structMeta) TextNote() string {
+	if this.isTest {
+		return " TEST"
+	}
+	return ""
+}
+
 func (this *structMeta) needScan() bool {
 	return this.category == InterfaceCategory && !this.scaned
 }
 
 func (this *structMeta) implInterfaceUML(interfaceMeta1 *structMeta) string {
-	return fmt.Sprintf("%s <|- %s\n", interfaceMeta1.UniqueNameUML(), this.UniqueNameUML())
+	return fmt.Sprintf("%s <|.. %s\n", interfaceMeta1.UniqueNameUML(), this.UniqueNameUML())
 }
 
 type importMeta struct {
@@ -198,6 +201,8 @@ type DependencyRelation struct {
 	source *structMeta
 	target *structMeta
 	uml    string
+	// 依赖关系是否是继承关系
+	inheritance bool
 }
 
 type analysisTool struct {
@@ -244,10 +249,11 @@ func (this *analysisTool) analysis(config Config) {
 				return filepath.SkipDir
 			}
 		}
-		// 过滤掉测试代码
-		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "test.go") {
+
+		if strings.HasSuffix(path, ".go") {
+			isTest := strings.HasSuffix(path, "test.go")
 			log.Info("解析1 " + path)
-			this.visitTypeInFile(path)
+			this.visitTypeInFile(path, isTest)
 		}
 
 		return nil
@@ -261,8 +267,8 @@ func (this *analysisTool) analysis(config Config) {
 				return filepath.SkipDir
 			}
 		}
-		// 过滤掉测试代码
-		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "test.go") {
+
+		if strings.HasSuffix(path, ".go") {
 			log.Info("解析2 " + path)
 			this.visitFuncInFile(path)
 		}
@@ -301,7 +307,7 @@ func (this *analysisTool) mapPackagePath_PackageName(packagePath string, package
 
 }
 
-func (this *analysisTool) visitTypeInFile(path string) {
+func (this *analysisTool) visitTypeInFile(path string, isTest bool) {
 
 	this.initFile(path)
 
@@ -325,7 +331,9 @@ func (this *analysisTool) visitTypeInFile(path string) {
 				typeSpec, ok := spec.(*ast.TypeSpec)
 
 				if ok {
-					this.visitTypeSpec(typeSpec)
+					if !this.inIgnoreNode(typeSpec.Name.Name) {
+						this.visitTypeSpec(typeSpec, isTest)
+					}
 				}
 			}
 		}
@@ -334,7 +342,7 @@ func (this *analysisTool) visitTypeInFile(path string) {
 
 }
 
-func (this *analysisTool) visitTypeSpec(typeSpec *ast.TypeSpec) {
+func (this *analysisTool) visitTypeSpec(typeSpec *ast.TypeSpec, isTest bool) {
 
 	interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
 	if ok {
@@ -344,7 +352,7 @@ func (this *analysisTool) visitTypeSpec(typeSpec *ast.TypeSpec) {
 
 	structType, ok := typeSpec.Type.(*ast.StructType)
 	if ok {
-		this.visitStructType(typeSpec.Name.Name, structType)
+		this.visitStructType(typeSpec.Name.Name, structType, isTest)
 		return
 	}
 
@@ -439,6 +447,9 @@ func (this *analysisTool) visitFuncInFile(path string) {
 				typeSpec, ok := spec.(*ast.TypeSpec)
 
 				if ok {
+					if this.inIgnoreNode(typeSpec.Name.Name) {
+						continue
+					}
 
 					interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
 					if ok {
@@ -467,7 +478,7 @@ func (this *analysisTool) visitFuncInFile(path string) {
 
 }
 
-func (this *analysisTool) visitStructType(name string, structType *ast.StructType) {
+func (this *analysisTool) visitStructType(name string, structType *ast.StructType, isTest bool) {
 
 	strutMeta1 := &structMeta{
 		baseInfo: baseInfo{
@@ -477,6 +488,7 @@ func (this *analysisTool) visitStructType(name string, structType *ast.StructTyp
 		Name:        name,
 		MethodSigns: []string{},
 		category:    StructCategory,
+		isTest:      isTest,
 	}
 
 	this.structMetas = append(this.structMetas, strutMeta1)
@@ -487,12 +499,11 @@ func (this *analysisTool) visitStructFields(structName string, structType *ast.S
 
 	sourceStruct1 := this.findStruct(this.currentPackagePath, structName)
 
-	sourceStruct1.UML = this.structToUML(structName, structType)
+	sourceStruct1.UML = this.structToUML(structName, structType, sourceStruct1)
 
 	for _, field := range structType.Fields.List {
 		this.visitStructField(sourceStruct1, field)
 	}
-
 }
 
 func (this *analysisTool) visitStructField(sourceStruct1 *structMeta, field *ast.Field) {
@@ -506,9 +517,10 @@ func (this *analysisTool) visitStructField(sourceStruct1 *structMeta, field *ast
 		if fieldNames == "" {
 
 			d := DependencyRelation{
-				source: sourceStruct1,
-				target: targetStruct1,
-				uml:    sourceStruct1.UniqueNameUML() + " -|> " + targetStruct1.UniqueNameUML(),
+				source:      sourceStruct1,
+				target:      targetStruct1,
+				uml:         sourceStruct1.UniqueNameUML() + " -|> " + targetStruct1.UniqueNameUML(),
+				inheritance: true,
 			}
 
 			this.dependencyRelations = append(this.dependencyRelations, &d)
@@ -614,8 +626,8 @@ func (this *analysisTool) analysisTypeForDependencyRelation(t ast.Expr) (structM
 	return
 }
 
-func (this *analysisTool) structToUML(name string, structType *ast.StructType) string {
-	classUML := "class " + name + " " + this.structBodyToString(structType)
+func (this *analysisTool) structToUML(name string, structType *ast.StructType, me *structMeta) string {
+	classUML := "class " + name + me.ColorfulUML() + " " + this.structBodyToString(structType)
 	return fmt.Sprintf("namespace %s {\n %s \n}", this.packagePathToUML(this.currentPackagePath), classUML)
 }
 
@@ -651,8 +663,8 @@ func (this *analysisTool) visitInterfaceType(name string, interfaceType *ast.Int
 	this.structMetas = append(this.structMetas, interfaceInfo1)
 }
 
-func (this *analysisTool) interfaceToUML(name string, interfaceType *ast.InterfaceType) string {
-	interfaceUML := "interface " + name + " " + this.interfaceBodyToString(interfaceType)
+func (this *analysisTool) interfaceToUML(name string, interfaceType *ast.InterfaceType, me *structMeta) string {
+	interfaceUML := "interface " + name + me.ColorfulUML() + " " + this.interfaceBodyToString(interfaceType)
 	return fmt.Sprintf("namespace %s {\n %s \n}", this.packagePathToUML(this.currentPackagePath), interfaceUML)
 }
 
@@ -742,7 +754,7 @@ func (this *analysisTool) visitFunc(funcDecl *ast.FuncDecl) {
 func (this *analysisTool) visitInterfaceFunctions(name string, interfaceType *ast.InterfaceType) {
 
 	methods := []string{}
-	
+
 	for _, field := range interfaceType.Methods.List {
 
 		funcType, ok := field.Type.(*ast.FuncType)
@@ -754,7 +766,7 @@ func (this *analysisTool) visitInterfaceFunctions(name string, interfaceType *as
 
 	im := this.findStruct(this.currentPackagePath, name)
 	im.MethodSigns = methods
-	im.UML = this.interfaceToUML(name, interfaceType)
+	im.UML = this.interfaceToUML(name, interfaceType, im)
 }
 
 func (this *analysisTool) findStructTypeOfFunc(funcDecl *ast.FuncDecl) (packageAlias string, structName string) {
@@ -1184,8 +1196,7 @@ func (this *analysisTool) findInterfaceImpls(interfaceMeta1 *structMeta) []*stru
 		if structMeta1.category != StructCategory {
 			continue
 		}
-
-		if sliceContainsSlice(interfaceMeta1.MethodSigns, structMeta1.MethodSigns) {
+		if this.inheritance(interfaceMeta1, structMeta1) {
 			metas = append(metas, structMeta1)
 		}
 	}
@@ -1239,4 +1250,22 @@ func (this *analysisTool) OutputToFile(logdir string, nodename string, nodedepth
 	ioutil.WriteFile(logfile, []byte(uml), 0666)
 	log.Infof("数据已保存到%s\n", logfile)
 
+}
+
+func (tool *analysisTool) getMyParents(meta *structMeta) []*structMeta {
+	parents := make([]*structMeta, 0, 5)
+	for _, v := range tool.dependencyRelations {
+		if v.inheritance && v.source == meta {
+			parents = append(parents, v.target)
+		}
+	}
+	return parents
+}
+func (tool *analysisTool) inIgnoreNode(s string) bool {
+	for _, v := range tool.config.IgnoreNodes {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

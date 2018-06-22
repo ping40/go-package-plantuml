@@ -33,6 +33,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 	if len(filteredStructMetas) > 1 {
 		for i := 0; i < len(filteredStructMetas)-1; i++ {
 			for j := i + 1; j < len(filteredStructMetas); j++ {
+				// 如果存在的关系，则把关系放到 filteredDependencyRelations
 				if ok, r := isRelation(this.dependencyRelations, filteredStructMetas[i], filteredStructMetas[j]); ok {
 					filteredDependencyRelations = append(filteredDependencyRelations, r)
 				}
@@ -81,14 +82,14 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 				if sm.category != InterfaceCategory {
 					continue
 				}
-				if exists := structExists(filteredStructMetas, sm); exists {
+				if sm.scaned { // 表明这个接口的所有的实现类都已经加入到filteredStructMetas
 					continue
 				}
 				if this.inheritance(sm, structMeta1) {
+					uml += structMeta1.implInterfaceUML(sm)
 					if exists := structExists(newestStructMetas, sm); !exists {
 						sm.Layer = layer
 						newestStructMetas = append(newestStructMetas, sm)
-						uml += structMeta1.implInterfaceUML(sm)
 					}
 				}
 			}
@@ -108,25 +109,12 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 			impls := this.findInterfaceImpls(structMeta1)
 			for _, impl := range impls {
 				uml += impl.implInterfaceUML(structMeta1)
-				if impl.Layer > 0 {
+
+				if impl.Layer < 1 {
 					impl.Layer = layer
 					newestStructMetas = append(newestStructMetas, impl)
 				}
 			}
-			/*
-				for _, sm := range this.structMetas {
-					if sm.category != StructCategory {
-						continue
-					}
-
-					if this.inheritance(structMeta1, sm) {
-						if exists := structExists(newestStructMetas, sm); !exists {
-							sm.Layer = layer
-							newestStructMetas = append(newestStructMetas, sm)
-						}
-						uml += sm.implInterfaceUML(structMeta1)
-					}
-				}*/
 		}
 
 		filteredStructMetas = append(filteredStructMetas, newestStructMetas...)
@@ -135,7 +123,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 	for _, structMeta1 := range filteredStructMetas {
 		uml += structMeta1.UML
 		uml += "\n"
-		uml += fmt.Sprintf("note top of %s: layer #%d \n", structMeta1.UniqueNameUML(), structMeta1.Layer)
+		uml += fmt.Sprintf("note top of %s: layer #%d%s \n", structMeta1.UniqueNameUML(), structMeta1.Layer, structMeta1.TextNote())
 	}
 
 	for _, d := range filteredDependencyRelations {
@@ -205,9 +193,47 @@ func dependencyRelationExists(relations []*DependencyRelation, relation *Depende
 }
 
 func (this *analysisTool) inheritance(definedInterface, impl *structMeta) bool {
-	if sliceContainsSlice(definedInterface.MethodSigns, impl.MethodSigns) {
-		return true
+	signs := definedInterface.MethodSigns
+	if len(signs) < 1 {
+		return false
 	}
 
-	return false
+	checkedStruct := make([]*structMeta, 0, 10)
+	for _, sign := range signs {
+		if ok, _ := this.hasTheSign(impl, sign, checkedStruct); !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (this *analysisTool) hasTheSign(meta *structMeta, s string, checkedStruct []*structMeta) (bool, []*structMeta) {
+	mySigns := meta.MethodSigns
+	if sliceContains(mySigns, s) {
+		return true, checkedStruct
+	}
+	checkedStruct = append(checkedStruct, meta)
+
+	myParents := this.getMyParents(meta)
+
+	var ok, exists bool
+	for _, parent := range myParents {
+
+		exists = false
+		for _, v := range checkedStruct {
+			if v == parent {
+				exists = true
+				break
+			}
+		}
+		if exists {
+			continue
+		}
+
+		if ok, checkedStruct = this.hasTheSign(parent, s, checkedStruct); ok {
+			return true, checkedStruct
+		}
+	}
+	return false, checkedStruct
 }
