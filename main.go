@@ -17,13 +17,14 @@ func main() {
 	log.SetLevel(log.InfoLevel)
 
 	var opts struct {
-		CodeDir     string   `long:"codedir" description:"要扫描的代码目录" required:"true"`
-		GopathDir   string   `long:"gopath" description:"GOPATH目录" required:"true"`
-		OutputDir   string   `long:"outputdir" description:"解析结果保存到该文件夹" required:"true"`
-		IgnoreDirs  []string `long:"ignoredir" description:"需要排除的目录,不需要扫描和解析"`
-		IgnoreNodes []string `long:"ignorenode" description:"需要排除的struct/interface,不需要扫描和解析"`
-		NodeName    string   `long:"nodename" description:"struct/interface名字"`
-		NodeDepth   uint16   `long:"nodedepth" description:"struct/interface关系度"`
+		CodeDir         string   `long:"codedir" description:"要扫描的代码目录" required:"true"`
+		GopathDir       string   `long:"gopath" description:"GOPATH目录" required:"true"`
+		OutputDir       string   `long:"outputdir" description:"解析结果保存到该文件夹" required:"true"`
+		IgnoreDirs      []string `long:"ignoredir" description:"需要排除的目录,不需要扫描和解析"`
+		TestPartialDirs []string `long:"testpartialdir" description:"测试部分目录，比如mocks，test，系统自己增加 /开头，/结尾"`
+		IgnoreNodes     []string `long:"ignorenode" description:"需要排除的struct/interface,不需要扫描和解析"`
+		NodeName        string   `long:"nodename" description:"struct/interface名字"`
+		NodeDepth       uint16   `long:"nodedepth" description:"struct/interface关系度"`
 	}
 
 	if len(os.Args) == 1 {
@@ -61,17 +62,30 @@ func main() {
 	}
 
 	config := codeanalysis.Config{
-		CodeDir:     opts.CodeDir,
-		GopathDir:   opts.GopathDir,
-		VendorDir:   path.Join(opts.CodeDir, "vendor"),
-		IgnoreDirs:  dealPath(opts.IgnoreDirs),
-		IgnoreNodes: opts.IgnoreNodes,
+		CodeDir:         opts.CodeDir,
+		GopathDir:       opts.GopathDir,
+		VendorDir:       path.Join(opts.CodeDir, "vendor"),
+		IgnoreDirs:      dealPath(opts.IgnoreDirs),
+		TestPartialDirs: dealTestPartialDirs(opts.TestPartialDirs),
+		IgnoreNodes:     opts.IgnoreNodes,
 	}
 
 	result := codeanalysis.AnalysisCode(config)
 
 	result.OutputToFile(opts.OutputDir, opts.NodeName, opts.NodeDepth)
 
+}
+func dealTestPartialDirs(testPartialDirs []string) (result []string) {
+	for _, s := range testPartialDirs {
+		if !strings.HasPrefix(s, "/") {
+			s = "/" + s
+		}
+		if !strings.HasSuffix(s, "/") {
+			s += "/"
+		}
+		result = append(result, s)
+	}
+	return
 }
 
 func dealPath(ignoreDirs []string) []string {

@@ -25,11 +25,12 @@ const (
 )
 
 type Config struct {
-	CodeDir     string
-	GopathDir   string
-	VendorDir   string
-	IgnoreDirs  []string
-	IgnoreNodes []string
+	CodeDir         string
+	GopathDir       string
+	VendorDir       string
+	IgnoreDirs      []string
+	TestPartialDirs []string
+	IgnoreNodes     []string
 }
 
 type AnalysisResult interface {
@@ -251,7 +252,7 @@ func (this *analysisTool) analysis(config Config) {
 		}
 
 		if strings.HasSuffix(path, ".go") {
-			isTest := strings.HasSuffix(path, "test.go")
+			isTest := this.checkIsTest(path)
 			log.Info("解析1 " + path)
 			this.visitTypeInFile(path, isTest)
 		}
@@ -277,6 +278,19 @@ func (this *analysisTool) analysis(config Config) {
 
 	filepath.Walk(config.CodeDir, dir_walk_twice)
 
+}
+
+func (this *analysisTool) checkIsTest(s string) bool {
+	if strings.HasSuffix(s, "_test.go") {
+		return true
+	}
+
+	for _, tpd := range this.config.TestPartialDirs {
+		if strings.Contains(s, tpd) {
+			return true
+		}
+	}
+	return false
 }
 
 func (this *analysisTool) initFile(path string) {
