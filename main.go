@@ -73,7 +73,7 @@ func main() {
 
 	result := codeanalysis.AnalysisCode(config)
 
-	result.OutputToFile(opts.OutputDir, opts.NodeName, opts.NodeDepth, opts.ShowTest == "yes")
+	result.OutputToFile(opts.OutputDir, opts.NodeName, opts.NodeDepth, opts.ShowTest == "true")
 
 }
 func dealTestPartialDirs(testPartialDirs []string) (result []string) {

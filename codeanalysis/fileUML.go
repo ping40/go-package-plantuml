@@ -64,13 +64,16 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16, showtest 
 			} else {
 				addedStructMeta = d.source
 			}
-			if exists := structExists(filteredStructMetas, newestStructMetas, addedStructMeta); !exists {
-				if showtest || !addedStructMeta.isTest {
+
+			if showtest || !addedStructMeta.isTest {
+				if exists := structExists(filteredStructMetas, newestStructMetas, addedStructMeta); !exists {
+
 					addedStructMeta.Layer = layer
 					newestStructMetas = append(newestStructMetas, addedStructMeta)
+
 				}
+				filteredDependencyRelations = append(filteredDependencyRelations, d)
 			}
-			filteredDependencyRelations = append(filteredDependencyRelations, d)
 		}
 
 		//从filteredStructMetas找没有扫描过的struct，进而找他们的实现的接口
@@ -91,13 +94,15 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16, showtest 
 				if sm.scaned { // 表明这个接口的所有的实现类都已经加入到filteredStructMetas
 					continue
 				}
-				if this.inheritance(sm, structMeta1) {
-					if newRelations, isNewRelation = checkNewRelation(newRelations, sm, structMeta1); isNewRelation {
-						uml += structMeta1.implInterfaceUML(sm)
-					}
 
-					if exists := structExists(filteredStructMetas, newestStructMetas, sm); !exists {
-						if showtest || !sm.isTest {
+				if showtest || !sm.isTest {
+					if this.inheritance(sm, structMeta1) {
+						if newRelations, isNewRelation = checkNewRelation(newRelations, sm, structMeta1); isNewRelation {
+							uml += structMeta1.implInterfaceUML(sm)
+						}
+
+						if exists := structExists(filteredStructMetas, newestStructMetas, sm); !exists {
+
 							sm.Layer = layer
 							newestStructMetas = append(newestStructMetas, sm)
 						}
@@ -119,11 +124,12 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16, showtest 
 
 			impls := this.findInterfaceImpls(structMeta1)
 			for _, impl := range impls {
-				if newRelations, isNewRelation = checkNewRelation(newRelations, structMeta1, impl); isNewRelation {
-					uml += impl.implInterfaceUML(structMeta1)
-				}
-				if exists := structExists(filteredStructMetas, newestStructMetas, impl); !exists {
-					if showtest || !impl.isTest {
+				if showtest || !impl.isTest {
+					if newRelations, isNewRelation = checkNewRelation(newRelations, structMeta1, impl); isNewRelation {
+						uml += impl.implInterfaceUML(structMeta1)
+					}
+					if exists := structExists(filteredStructMetas, newestStructMetas, impl); !exists {
+
 						impl.Layer = layer
 						newestStructMetas = append(newestStructMetas, impl)
 					}
