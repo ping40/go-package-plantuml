@@ -34,7 +34,7 @@ type Config struct {
 }
 
 type AnalysisResult interface {
-	OutputToFile(logdir string, nodename string, nodedepth uint16)
+	OutputToFile(logdir string, nodename string, nodedepth uint16, showtest bool)
 }
 
 func AnalysisCode(config Config) AnalysisResult {
@@ -1249,7 +1249,7 @@ func (this *analysisTool) UML() string {
 	return "@startuml\n" + uml + "@enduml"
 }
 
-func (this *analysisTool) OutputToFile(logdir string, nodename string, nodedepth uint16) {
+func (this *analysisTool) OutputToFile(logdir string, nodename string, nodedepth uint16, showtest bool) {
 	var uml string
 	var logfile string
 
@@ -1261,8 +1261,8 @@ func (this *analysisTool) OutputToFile(logdir string, nodename string, nodedepth
 		uml = this.UML()
 		logfile = logdir + "/all.puml"
 	} else {
-		uml = this.filterUML(nodename, nodedepth)
-		logfile += fmt.Sprintf("%s/node-%s-%d.puml", logdir, nodename, nodedepth)
+		uml = this.filterUML(nodename, nodedepth, showtest)
+		logfile += fmt.Sprintf("%s/node-%s-%d-%v.puml", logdir, nodename, nodedepth, showtest)
 	}
 	ioutil.WriteFile(logfile, []byte(uml), 0666)
 	log.Infof("数据已保存到%s\n", logfile)

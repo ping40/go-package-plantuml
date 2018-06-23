@@ -8,7 +8,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
+func (this *analysisTool) filterUML(nodename string, nodedepth uint16, showtest bool) string {
 
 	uml := ""
 	var filteredStructMetas []*structMeta
@@ -17,7 +17,9 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 	for _, structMeta1 := range this.structMetas {
 		log.Infof("name: %s, package: %s", structMeta1.Name, structMeta1.baseInfo.PackagePath)
 		if structMeta1.Name == nodename {
-			filteredStructMetas = append(filteredStructMetas, structMeta1)
+			if showtest || !structMeta1.isTest {
+				filteredStructMetas = append(filteredStructMetas, structMeta1)
+			}
 		}
 	}
 
@@ -63,8 +65,10 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 				addedStructMeta = d.source
 			}
 			if exists := structExists(filteredStructMetas, newestStructMetas, addedStructMeta); !exists {
-				addedStructMeta.Layer = layer
-				newestStructMetas = append(newestStructMetas, addedStructMeta)
+				if showtest || !addedStructMeta.isTest {
+					addedStructMeta.Layer = layer
+					newestStructMetas = append(newestStructMetas, addedStructMeta)
+				}
 			}
 			filteredDependencyRelations = append(filteredDependencyRelations, d)
 		}
@@ -93,8 +97,10 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 					}
 
 					if exists := structExists(filteredStructMetas, newestStructMetas, sm); !exists {
-						sm.Layer = layer
-						newestStructMetas = append(newestStructMetas, sm)
+						if showtest || !sm.isTest {
+							sm.Layer = layer
+							newestStructMetas = append(newestStructMetas, sm)
+						}
 					}
 				}
 			}
@@ -117,8 +123,10 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 					uml += impl.implInterfaceUML(structMeta1)
 				}
 				if exists := structExists(filteredStructMetas, newestStructMetas, impl); !exists {
-					impl.Layer = layer
-					newestStructMetas = append(newestStructMetas, impl)
+					if showtest || !impl.isTest {
+						impl.Layer = layer
+						newestStructMetas = append(newestStructMetas, impl)
+					}
 				}
 			}
 		}

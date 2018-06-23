@@ -25,6 +25,7 @@ func main() {
 		IgnoreNodes     []string `long:"ignorenode" description:"需要排除的struct/interface,不需要扫描和解析"`
 		NodeName        string   `long:"nodename" description:"struct/interface名字"`
 		NodeDepth       uint16   `long:"nodedepth" description:"struct/interface关系度"`
+		ShowTest        string   `long:"showtest" description:"是否显示 测试类yes/no"`
 	}
 
 	if len(os.Args) == 1 {
@@ -72,7 +73,7 @@ func main() {
 
 	result := codeanalysis.AnalysisCode(config)
 
-	result.OutputToFile(opts.OutputDir, opts.NodeName, opts.NodeDepth)
+	result.OutputToFile(opts.OutputDir, opts.NodeName, opts.NodeDepth, opts.ShowTest == "yes")
 
 }
 func dealTestPartialDirs(testPartialDirs []string) (result []string) {
