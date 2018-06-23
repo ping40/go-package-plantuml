@@ -12,6 +12,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 
 	uml := ""
 	var filteredStructMetas []*structMeta
+	var newRelations []*DependencyRelation
 
 	for _, structMeta1 := range this.structMetas {
 		log.Infof("name: %s, package: %s", structMeta1.Name, structMeta1.baseInfo.PackagePath)
@@ -29,6 +30,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 
 	var addedStructMeta *structMeta
 	var filteredDependencyRelations []*DependencyRelation
+	var isNewRelation bool
 
 	if len(filteredStructMetas) > 1 {
 		for i := 0; i < len(filteredStructMetas)-1; i++ {
@@ -60,7 +62,7 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 			} else {
 				addedStructMeta = d.source
 			}
-			if exists := structExists(newestStructMetas, addedStructMeta); !exists {
+			if exists := structExists(filteredStructMetas, newestStructMetas, addedStructMeta); !exists {
 				addedStructMeta.Layer = layer
 				newestStructMetas = append(newestStructMetas, addedStructMeta)
 			}
@@ -86,8 +88,11 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 					continue
 				}
 				if this.inheritance(sm, structMeta1) {
-					uml += structMeta1.implInterfaceUML(sm)
-					if exists := structExists(newestStructMetas, sm); !exists {
+					if newRelations, isNewRelation = checkNewRelation(newRelations, sm, structMeta1); isNewRelation {
+						uml += structMeta1.implInterfaceUML(sm)
+					}
+
+					if exists := structExists(filteredStructMetas, newestStructMetas, sm); !exists {
 						sm.Layer = layer
 						newestStructMetas = append(newestStructMetas, sm)
 					}
@@ -108,9 +113,10 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 
 			impls := this.findInterfaceImpls(structMeta1)
 			for _, impl := range impls {
-				uml += impl.implInterfaceUML(structMeta1)
-
-				if impl.Layer < 1 {
+				if newRelations, isNewRelation = checkNewRelation(newRelations, structMeta1, impl); isNewRelation {
+					uml += impl.implInterfaceUML(structMeta1)
+				}
+				if exists := structExists(filteredStructMetas, newestStructMetas, impl); !exists {
 					impl.Layer = layer
 					newestStructMetas = append(newestStructMetas, impl)
 				}
@@ -132,6 +138,20 @@ func (this *analysisTool) filterUML(nodename string, nodedepth uint16) string {
 	}
 
 	return "@startuml\n" + uml + "@enduml"
+}
+
+func checkNewRelation(relations []*DependencyRelation, source *structMeta, target *structMeta) ([]*DependencyRelation, bool) {
+	for _, v := range relations {
+		if v.source == source && v.target == target {
+			return relations, false
+		}
+	}
+
+	relations = append(relations, &DependencyRelation{
+		source: source,
+		target: target,
+	})
+	return relations, true
 }
 
 func isRelation(relations []*DependencyRelation, meta *structMeta, meta2 *structMeta) (bool, *DependencyRelation) {
@@ -160,8 +180,13 @@ func showDependencyRelations(relations []*DependencyRelation) {
 
 }
 
-func structExists(metas []*structMeta, meta *structMeta) bool {
+func structExists(metas2 []*structMeta, metas []*structMeta, meta *structMeta) bool {
 	for _, r := range metas {
+		if meta.Name == r.Name && meta.PackagePath == r.PackagePath {
+			return true
+		}
+	}
+	for _, r := range metas2 {
 		if meta.Name == r.Name && meta.PackagePath == r.PackagePath {
 			return true
 		}

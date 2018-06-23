@@ -767,6 +767,9 @@ func (this *analysisTool) visitFunc(funcDecl *ast.FuncDecl) {
 
 func (this *analysisTool) visitInterfaceFunctions(name string, interfaceType *ast.InterfaceType) {
 
+	if name == "CryptoSuite" {
+		log.Println("haha")
+	}
 	methods := []string{}
 
 	for _, field := range interfaceType.Methods.List {
