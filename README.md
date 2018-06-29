@@ -1,5 +1,8 @@
 显示struct/interface的依赖关系，如果试图显示整个项目的依赖关系，图太复杂了没有办法看阿。
 
+- 忽然interface之间的关系。继承关系会有点错误
+- 不管struct 里面的 embedded interface
+
 #!/bin/sh
 
 C=go-package-plantuml
